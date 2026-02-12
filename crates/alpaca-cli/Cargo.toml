@@ -6,6 +6,10 @@ description = "Command-line interface for the Alpaca Trading API"
 license = "MIT"
 repository = "https://github.com/piekstra/alpaca-rs"
 
+[lib]
+name = "alpaca_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "alpaca"
 path = "src/main.rs"
@@ -20,3 +24,4 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 rust_decimal = { workspace = true }
 chrono = { workspace = true }
+serde = { workspace = true }

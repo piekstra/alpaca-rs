@@ -1,3 +1,4 @@
+use alpaca_cli::commands;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -54,23 +55,13 @@ async fn main() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Missing env var: {e}"))?;
     let client = alpaca_sdk::AlpacaClient::new(config)?;
 
-    match cli.command {
-        Commands::Account => {
-            let account = client.get_account().await?;
-            println!("{}", serde_json::to_string_pretty(&account)?);
-        }
-        Commands::Positions => {
-            let positions = client.list_positions().await?;
-            println!("{}", serde_json::to_string_pretty(&positions)?);
-        }
+    let result = match cli.command {
+        Commands::Account => commands::account(&client).await?,
+        Commands::Positions => commands::positions(&client).await?,
         Commands::Orders { status } => {
-            let orders = client.list_orders(status.as_deref()).await?;
-            println!("{}", serde_json::to_string_pretty(&orders)?);
+            commands::orders(&client, status.as_deref()).await?
         }
-        Commands::Quote { symbol } => {
-            let quote = client.get_latest_quote(&symbol).await?;
-            println!("{}", serde_json::to_string_pretty(&quote)?);
-        }
+        Commands::Quote { symbol } => commands::quote(&client, &symbol).await?,
         Commands::Bars {
             symbol,
             start,
@@ -79,16 +70,11 @@ async fn main() -> Result<()> {
         } => {
             let start_date = start.parse::<chrono::NaiveDate>()?;
             let end_date = end.parse::<chrono::NaiveDate>()?;
-            let bars = client
-                .get_bars(&symbol, start_date, end_date, &timeframe, None, None, None)
-                .await?;
-            println!("{}", serde_json::to_string_pretty(&bars)?);
+            commands::bars(&client, &symbol, start_date, end_date, &timeframe).await?
         }
-        Commands::Clock => {
-            let clock = client.get_clock().await?;
-            println!("{}", serde_json::to_string_pretty(&clock)?);
-        }
-    }
+        Commands::Clock => commands::clock(&client).await?,
+    };
 
+    println!("{}", serde_json::to_string_pretty(&result)?);
     Ok(())
 }

@@ -20,3 +20,4 @@ thiserror = "2"
 anyhow = "1"
 
 alpaca-sdk = { path = "crates/alpaca-sdk" }
+alpaca-cli = { path = "crates/alpaca-cli" }
