@@ -143,17 +143,25 @@ pub struct AlpacaQuote {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlpacaBarsResponse {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub bars: std::collections::HashMap<String, Vec<AlpacaBar>>,
     pub next_page_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlpacaSingleSymbolBarsResponse {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub bars: Vec<AlpacaBar>,
     pub symbol: Option<String>,
     pub next_page_token: Option<String>,
+}
+
+fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Default + serde::Deserialize<'de>,
+{
+    Ok(Option::deserialize(deserializer)?.unwrap_or_default())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
