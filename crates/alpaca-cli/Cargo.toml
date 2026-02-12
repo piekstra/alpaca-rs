@@ -1,0 +1,22 @@
+[package]
+name = "alpaca-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Command-line interface for the Alpaca Trading API"
+license = "MIT"
+repository = "https://github.com/piekstra/alpaca-rs"
+
+[[bin]]
+name = "alpaca"
+path = "src/main.rs"
+
+[dependencies]
+alpaca-sdk = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+rust_decimal = { workspace = true }
+chrono = { workspace = true }

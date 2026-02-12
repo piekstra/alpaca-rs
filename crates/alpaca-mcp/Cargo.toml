@@ -1,0 +1,16 @@
+[package]
+name = "alpaca-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "MCP server exposing the Alpaca Trading API as tools for Claude"
+license = "MIT"
+repository = "https://github.com/piekstra/alpaca-rs"
+
+[dependencies]
+alpaca-sdk = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
