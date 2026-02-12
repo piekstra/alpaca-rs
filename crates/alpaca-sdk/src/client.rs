@@ -28,12 +28,16 @@ impl AlpacaClient {
                 .map_err(|e| AlpacaError::Config(e.to_string()))?,
         );
 
+        let timeout = std::time::Duration::from_secs(30);
+
         let trading = reqwest::Client::builder()
             .default_headers(headers.clone())
+            .timeout(timeout)
             .build()?;
 
         let market_data = reqwest::Client::builder()
             .default_headers(headers)
+            .timeout(timeout)
             .build()?;
 
         Ok(Self {
