@@ -58,9 +58,7 @@ async fn main() -> Result<()> {
     let result = match cli.command {
         Commands::Account => commands::account(&client).await?,
         Commands::Positions => commands::positions(&client).await?,
-        Commands::Orders { status } => {
-            commands::orders(&client, status.as_deref()).await?
-        }
+        Commands::Orders { status } => commands::orders(&client, status.as_deref()).await?,
         Commands::Quote { symbol } => commands::quote(&client, &symbol).await?,
         Commands::Bars {
             symbol,

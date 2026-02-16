@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/api-client-core",
     "crates/alpaca-sdk",
     "crates/alpaca-cli",
     "crates/alpaca-mcp",
@@ -18,6 +19,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive"] }
 thiserror = "2"
 anyhow = "1"
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+futures-util = "0.3"
+url = "2"
 
+api-client-core = { path = "crates/api-client-core" }
 alpaca-sdk = { path = "crates/alpaca-sdk" }
 alpaca-cli = { path = "crates/alpaca-cli" }
