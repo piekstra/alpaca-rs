@@ -110,6 +110,45 @@ impl AlpacaClient {
         Ok(self.trading.get(&path).await?)
     }
 
+    /// List orders with full filtering (date range, limit, symbols).
+    ///
+    /// Alpaca API supports: status ("open"/"closed"/"all"), limit (max 500),
+    /// after/until (RFC3339 timestamps), direction ("asc"/"desc"), symbols (comma-separated).
+    pub async fn list_orders_filtered(
+        &self,
+        status: Option<&str>,
+        limit: Option<u32>,
+        after: Option<&str>,
+        until: Option<&str>,
+        direction: Option<&str>,
+        symbols: Option<&str>,
+    ) -> Result<Vec<AlpacaOrderResponse>, AlpacaError> {
+        let mut query: Vec<(&str, String)> = Vec::new();
+        if let Some(s) = status {
+            query.push(("status", s.to_string()));
+        }
+        if let Some(l) = limit {
+            query.push(("limit", l.to_string()));
+        }
+        if let Some(a) = after {
+            query.push(("after", a.to_string()));
+        }
+        if let Some(u) = until {
+            query.push(("until", u.to_string()));
+        }
+        if let Some(d) = direction {
+            query.push(("direction", d.to_string()));
+        }
+        if let Some(s) = symbols {
+            query.push(("symbols", s.to_string()));
+        }
+        let query_refs: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        Ok(self
+            .trading
+            .get_with_query("/v2/orders", &query_refs)
+            .await?)
+    }
+
     pub async fn cancel_order(&self, order_id: &str) -> Result<(), AlpacaError> {
         Ok(self
             .trading

@@ -19,7 +19,12 @@ pub struct AlpacaAccountResponse {
     pub short_market_value: String,
     pub initial_margin: String,
     pub maintenance_margin: String,
+    /// Removed from Alpaca's API circa 2026-07 (post-PDT-rule change);
+    /// defaults to 0 when absent.
+    #[serde(default)]
     pub daytrade_count: i32,
+    /// Removed from Alpaca's API circa 2026-07; defaults to false.
+    #[serde(default)]
     pub pattern_day_trader: bool,
     pub trading_blocked: bool,
     pub transfers_blocked: bool,
