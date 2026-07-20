@@ -280,6 +280,47 @@ pub struct AlpacaSnapshot {
     pub prev_daily_bar: Option<AlpacaBar>,
 }
 
+// ── Account Activities ───────────────────────────────────────────────
+
+/// A non-trade account activity (GET /v2/account/activities with an
+/// `activity_types` filter such as "CSD,CSW"). Trade activities (FILL)
+/// carry different fields; everything beyond `id`/`activity_type` is
+/// optional so both shapes deserialize.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaActivityResponse {
+    pub id: String,
+    pub activity_type: String,
+    /// Signed cash impact (deposits positive, withdrawals negative).
+    #[serde(default)]
+    pub net_amount: Option<Decimal>,
+    #[serde(default)]
+    pub date: Option<NaiveDate>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+// ── Portfolio History ────────────────────────────────────────────────
+
+/// Account equity time series (GET /v2/account/portfolio/history).
+/// Parallel arrays indexed by `timestamp` (epoch seconds); entries can be
+/// null on days Alpaca has no value for.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaPortfolioHistoryResponse {
+    pub timestamp: Vec<i64>,
+    pub equity: Vec<Option<Decimal>>,
+    #[serde(default)]
+    pub profit_loss: Vec<Option<Decimal>>,
+    #[serde(default)]
+    pub profit_loss_pct: Vec<Option<Decimal>>,
+    #[serde(default)]
+    pub base_value: Option<Decimal>,
+    #[serde(default)]
+    pub base_value_asof: Option<NaiveDate>,
+    pub timeframe: String,
+}
+
 // ── Clock ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -425,6 +466,70 @@ mod tests {
         assert!(account.shorting_enabled);
         assert!(account.sma.is_none());
         assert!(account.crypto_status.is_none());
+    }
+
+    #[test]
+    fn deserialize_activity_response() {
+        let json = r#"[
+            {
+                "id": "20240401000000000::045b3b8d-c566-4bef-b741-2bf598dd6ae7",
+                "activity_type": "CSD",
+                "date": "2024-04-01",
+                "net_amount": "10000",
+                "status": "executed"
+            },
+            {
+                "id": "20240601000000000::11111111-2222-3333-4444-555555555555",
+                "activity_type": "CSW",
+                "date": "2024-06-01",
+                "net_amount": "-2500.50",
+                "status": "executed"
+            }
+        ]"#;
+        let acts: Vec<AlpacaActivityResponse> = serde_json::from_str(json).unwrap();
+        assert_eq!(acts.len(), 2);
+        assert_eq!(acts[0].activity_type, "CSD");
+        assert_eq!(acts[0].net_amount, Some(Decimal::new(10000, 0)));
+        assert_eq!(acts[1].net_amount, Some(Decimal::new(-250050, 2)));
+        assert_eq!(
+            acts[1].date,
+            Some(NaiveDate::from_ymd_opt(2024, 6, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn deserialize_portfolio_history() {
+        // Real response shape observed 2026-07-17 (values are floats; the
+        // leading profit_loss_pct entry can be null).
+        let json = r#"{
+            "timestamp": [1747958400, 1748217600],
+            "equity": [11.39, 2995.69],
+            "profit_loss": [0.0, -15.7],
+            "profit_loss_pct": [null, -0.0052],
+            "base_value": 500.0,
+            "base_value_asof": "2025-08-15",
+            "timeframe": "1D"
+        }"#;
+        let hist: AlpacaPortfolioHistoryResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(hist.timestamp.len(), 2);
+        assert_eq!(hist.equity[0], Some(Decimal::new(1139, 2)));
+        assert_eq!(hist.profit_loss_pct[0], None);
+        assert_eq!(hist.base_value, Some(Decimal::new(5000, 1)));
+        assert_eq!(hist.timeframe, "1D");
+    }
+
+    #[test]
+    fn deserialize_fill_activity_lacks_net_amount() {
+        // Trade activities (FILL) have a different shape; the optional
+        // fields must tolerate their absence.
+        let json = r#"{
+            "id": "20240401093000000::aaaa",
+            "activity_type": "FILL"
+        }"#;
+        let act: AlpacaActivityResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(act.activity_type, "FILL");
+        assert!(act.net_amount.is_none());
+        assert!(act.date.is_none());
     }
 
     #[test]

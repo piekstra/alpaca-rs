@@ -69,6 +69,59 @@ impl AlpacaClient {
         Ok(self.trading.get("/v2/account").await?)
     }
 
+    /// Account equity time series, e.g. period "5A" with timeframe "1D" for
+    /// five years of daily closes. Read-only.
+    pub async fn get_portfolio_history(
+        &self,
+        period: &str,
+        timeframe: &str,
+    ) -> Result<AlpacaPortfolioHistoryResponse, AlpacaError> {
+        Ok(self
+            .trading
+            .get_with_query(
+                "/v2/account/portfolio/history",
+                &[("period", period), ("timeframe", timeframe)],
+            )
+            .await?)
+    }
+
+    /// List all account activities of the given comma-separated types
+    /// (e.g. "CSD,CSW" for cash deposits/withdrawals), oldest first,
+    /// paginating until exhausted. Read-only.
+    pub async fn get_account_activities(
+        &self,
+        activity_types: &str,
+    ) -> Result<Vec<AlpacaActivityResponse>, AlpacaError> {
+        const PAGE_SIZE: usize = 100;
+        let activities = paginate(|page_token| {
+            let types = activity_types.to_string();
+            async move {
+                let size = PAGE_SIZE.to_string();
+                let mut query: Vec<(&str, &str)> = vec![
+                    ("activity_types", types.as_str()),
+                    ("direction", "asc"),
+                    ("page_size", size.as_str()),
+                ];
+                if let Some(ref token) = page_token {
+                    query.push(("page_token", token.as_str()));
+                }
+                let page: Vec<AlpacaActivityResponse> = self
+                    .trading
+                    .get_with_query("/v2/account/activities", &query)
+                    .await?;
+                // Activities paginate by last-seen id; a short page is the end.
+                let next = if page.len() == PAGE_SIZE {
+                    page.last().map(|a| a.id.clone())
+                } else {
+                    None
+                };
+                Ok((page, next))
+            }
+        })
+        .await?;
+        Ok(activities)
+    }
+
     // ── Orders ───────────────────────────────────────────────────────
 
     #[allow(clippy::too_many_arguments)]
