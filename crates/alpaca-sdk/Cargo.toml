@@ -1,6 +1,6 @@
 [package]
 name = "alpaca-sdk"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Typed async Rust client for the Alpaca Trading and Market Data APIs"
 license = "MIT"

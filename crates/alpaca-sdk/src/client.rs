@@ -377,6 +377,153 @@ impl AlpacaClient {
 
         Ok(trades)
     }
+
+    // ── Options (read-only) ──────────────────────────────────────────
+
+    /// List option contracts for an underlying from the trading API's
+    /// reference data (`GET {trading_base}/v2/options/contracts`).
+    ///
+    /// `underlying_symbol` is forwarded as the `underlying_symbols` query
+    /// param, so a comma-separated list is also accepted. `filter` carries
+    /// the optional expiration/strike/type/style/status/limit constraints.
+    ///
+    /// Pagination follows `next_page_token` but is bounded: at most
+    /// `max_pages` pages are fetched (a value of 0 is treated as 1, so at
+    /// least one page is always returned).
+    pub async fn get_option_contracts(
+        &self,
+        underlying_symbol: &str,
+        filter: &OptionContractsFilter,
+        max_pages: usize,
+    ) -> Result<Vec<AlpacaOptionContract>, AlpacaError> {
+        let cap = max_pages.max(1);
+        let mut all: Vec<AlpacaOptionContract> = Vec::new();
+        let mut page_token: Option<String> = None;
+
+        for _ in 0..cap {
+            let mut query: Vec<(&str, String)> =
+                vec![("underlying_symbols", underlying_symbol.to_string())];
+            if let Some(d) = filter.expiration_date {
+                query.push(("expiration_date", d.to_string()));
+            }
+            if let Some(d) = filter.expiration_date_gte {
+                query.push(("expiration_date_gte", d.to_string()));
+            }
+            if let Some(d) = filter.expiration_date_lte {
+                query.push(("expiration_date_lte", d.to_string()));
+            }
+            if let Some(s) = filter.strike_price_gte {
+                query.push(("strike_price_gte", s.to_string()));
+            }
+            if let Some(s) = filter.strike_price_lte {
+                query.push(("strike_price_lte", s.to_string()));
+            }
+            if let Some(ref t) = filter.contract_type {
+                query.push(("type", t.clone()));
+            }
+            if let Some(ref s) = filter.style {
+                query.push(("style", s.clone()));
+            }
+            if let Some(ref s) = filter.status {
+                query.push(("status", s.clone()));
+            }
+            if let Some(l) = filter.limit {
+                query.push(("limit", l.to_string()));
+            }
+            if let Some(ref t) = page_token {
+                query.push(("page_token", t.clone()));
+            }
+            let query_refs: Vec<(&str, &str)> =
+                query.iter().map(|(k, v)| (*k, v.as_str())).collect();
+
+            let resp: AlpacaOptionContractsResponse = self
+                .trading
+                .get_with_query("/v2/options/contracts", &query_refs)
+                .await?;
+            all.extend(resp.option_contracts);
+
+            match resp.next_page_token {
+                Some(t) if !t.is_empty() => page_token = Some(t),
+                _ => break,
+            }
+        }
+
+        Ok(all)
+    }
+
+    /// Fetch latest option snapshots (quote, trade, greeks, IV) for an
+    /// underlying from the market-data API.
+    ///
+    /// Endpoint: `GET {market_data_base}/v1beta1/options/snapshots/{underlying_symbol}`
+    /// (v1beta1, OPRA feed by default). Verified against Alpaca's option-chain
+    /// reference — <https://docs.alpaca.markets/reference/optionchain> — on
+    /// 2026-08-28. The response is keyed by OCC contract symbol.
+    ///
+    /// Pagination follows `next_page_token` but is bounded: at most
+    /// `max_pages` pages are fetched (a value of 0 is treated as 1). Later
+    /// pages are merged into the returned map.
+    pub async fn get_option_snapshots(
+        &self,
+        underlying_symbol: &str,
+        filter: &OptionSnapshotsFilter,
+        max_pages: usize,
+    ) -> Result<std::collections::HashMap<String, AlpacaOptionSnapshot>, AlpacaError> {
+        let cap = max_pages.max(1);
+        let path = format!("/v1beta1/options/snapshots/{underlying_symbol}");
+        let mut all: std::collections::HashMap<String, AlpacaOptionSnapshot> =
+            std::collections::HashMap::new();
+        let mut page_token: Option<String> = None;
+
+        for _ in 0..cap {
+            let mut query: Vec<(&str, String)> = Vec::new();
+            if let Some(ref f) = filter.feed {
+                query.push(("feed", f.clone()));
+            }
+            if let Some(ref t) = filter.contract_type {
+                query.push(("type", t.clone()));
+            }
+            if let Some(s) = filter.strike_price_gte {
+                query.push(("strike_price_gte", s.to_string()));
+            }
+            if let Some(s) = filter.strike_price_lte {
+                query.push(("strike_price_lte", s.to_string()));
+            }
+            if let Some(d) = filter.expiration_date {
+                query.push(("expiration_date", d.to_string()));
+            }
+            if let Some(d) = filter.expiration_date_gte {
+                query.push(("expiration_date_gte", d.to_string()));
+            }
+            if let Some(d) = filter.expiration_date_lte {
+                query.push(("expiration_date_lte", d.to_string()));
+            }
+            if let Some(ref r) = filter.root_symbol {
+                query.push(("root_symbol", r.clone()));
+            }
+            if let Some(ref u) = filter.updated_since {
+                query.push(("updated_since", u.clone()));
+            }
+            if let Some(l) = filter.limit {
+                query.push(("limit", l.to_string()));
+            }
+            if let Some(ref t) = page_token {
+                query.push(("page_token", t.clone()));
+            }
+            let query_refs: Vec<(&str, &str)> =
+                query.iter().map(|(k, v)| (*k, v.as_str())).collect();
+
+            let resp: AlpacaOptionSnapshotsResponse =
+                self.market_data.get_with_query(&path, &query_refs).await?;
+            all.extend(resp.snapshots);
+
+            match resp.next_page_token {
+                Some(t) if !t.is_empty() => page_token = Some(t),
+                _ => break,
+            }
+        }
+
+        Ok(all)
+    }
 }
 
 #[cfg(test)]
@@ -412,5 +559,57 @@ mod tests {
         };
         let client = AlpacaClient::new(config);
         assert!(client.is_ok());
+    }
+
+    #[test]
+    fn option_filters_default_empty() {
+        let f = OptionContractsFilter::default();
+        assert!(f.expiration_date.is_none());
+        assert!(f.strike_price_gte.is_none());
+        assert!(f.limit.is_none());
+        let s = OptionSnapshotsFilter::default();
+        assert!(s.feed.is_none());
+        assert!(s.contract_type.is_none());
+    }
+
+    // ── Live paper tests (opt-in) ────────────────────────────────────
+    // Run with creds in the environment:
+    //   APCA_API_KEY_ID=… APCA_API_SECRET_KEY=… \
+    //     cargo test -p alpaca-sdk -- --ignored --nocapture
+    // Never hardcode or print credentials.
+
+    #[tokio::test]
+    #[ignore = "hits Alpaca paper; requires APCA_API_KEY_ID/APCA_API_SECRET_KEY"]
+    async fn live_get_option_contracts() {
+        let config = AlpacaConfig::from_env().expect("env creds");
+        let client = AlpacaClient::new(config).unwrap();
+        let filter = OptionContractsFilter {
+            limit: Some(10),
+            ..Default::default()
+        };
+        let contracts = client
+            .get_option_contracts("AAPL", &filter, 1)
+            .await
+            .expect("fetch contracts");
+        assert!(!contracts.is_empty(), "expected at least one AAPL contract");
+        let c = &contracts[0];
+        assert_eq!(c.underlying_symbol, "AAPL");
+        assert!(c.contract_type == "call" || c.contract_type == "put");
+    }
+
+    #[tokio::test]
+    #[ignore = "hits Alpaca paper; requires APCA_API_KEY_ID/APCA_API_SECRET_KEY"]
+    async fn live_get_option_snapshots() {
+        let config = AlpacaConfig::from_env().expect("env creds");
+        let client = AlpacaClient::new(config).unwrap();
+        let filter = OptionSnapshotsFilter {
+            limit: Some(10),
+            ..Default::default()
+        };
+        let snaps = client
+            .get_option_snapshots("AAPL", &filter, 1)
+            .await
+            .expect("fetch snapshots");
+        assert!(!snaps.is_empty(), "expected at least one AAPL snapshot");
     }
 }
