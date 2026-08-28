@@ -109,6 +109,10 @@ Set environment variables or use `AlpacaConfig::paper()`:
 - Historical trades with auto-pagination
 - Supports all timeframes (1Min, 5Min, 15Min, 1Hour, 1Day)
 
+### Options (read-only)
+- Option contracts / chain reference data (`get_option_contracts`, trading API) with bounded `next_page_token` pagination
+- Option snapshots — latest quote, trade, greeks, and implied volatility (`get_option_snapshots`, market-data API, `v1beta1`, OPRA feed)
+
 ### WebSocket Streaming
 - Real-time trades, quotes, and minute bars (IEX / SIP feeds)
 - Account trade updates (order fills, cancellations, replacements)

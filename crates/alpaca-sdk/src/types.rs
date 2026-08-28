@@ -280,6 +280,184 @@ pub struct AlpacaSnapshot {
     pub prev_daily_bar: Option<AlpacaBar>,
 }
 
+// ── Options ──────────────────────────────────────────────────────────
+
+/// One page of option contracts (GET {trading}/v2/options/contracts).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaOptionContractsResponse {
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub option_contracts: Vec<AlpacaOptionContract>,
+    #[serde(default)]
+    pub next_page_token: Option<String>,
+}
+
+/// A single option contract from the trading API's reference data.
+///
+/// Alpaca sends every numeric field on this endpoint as a JSON *string*
+/// (strike_price, multiplier, size, open_interest, close_price), so they
+/// are modeled as `String` to match the crate's price-as-string convention
+/// (see `AlpacaOrderResponse`/`AlpacaPositionResponse`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaOptionContract {
+    pub id: String,
+    pub symbol: String,
+    pub name: String,
+    pub status: String,
+    pub tradable: bool,
+    pub expiration_date: NaiveDate,
+    pub underlying_symbol: String,
+    /// "call" or "put".
+    #[serde(rename = "type")]
+    pub contract_type: String,
+    /// "american" or "european".
+    pub style: String,
+    /// Decimal-formatted string, e.g. "100".
+    pub strike_price: String,
+    #[serde(default)]
+    pub root_symbol: Option<String>,
+    #[serde(default)]
+    pub underlying_asset_id: Option<String>,
+    #[serde(default)]
+    pub multiplier: Option<String>,
+    #[serde(default)]
+    pub size: Option<String>,
+    #[serde(default)]
+    pub open_interest: Option<String>,
+    #[serde(default)]
+    pub open_interest_date: Option<NaiveDate>,
+    #[serde(default)]
+    pub close_price: Option<String>,
+    #[serde(default)]
+    pub close_price_date: Option<NaiveDate>,
+}
+
+/// One page of option snapshots (GET
+/// {market_data}/v1beta1/options/snapshots/{underlying_symbol}), keyed by
+/// contract (OCC) symbol.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaOptionSnapshotsResponse {
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub snapshots: std::collections::HashMap<String, AlpacaOptionSnapshot>,
+    #[serde(default)]
+    pub next_page_token: Option<String>,
+}
+
+/// Latest market data for a single option contract. Every price/greek field
+/// is optional because the OPRA feed omits data for illiquid or
+/// not-yet-computed contracts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaOptionSnapshot {
+    #[serde(rename = "latestQuote", default)]
+    pub latest_quote: Option<AlpacaOptionQuote>,
+    #[serde(rename = "latestTrade", default)]
+    pub latest_trade: Option<AlpacaOptionTrade>,
+    #[serde(default)]
+    pub greeks: Option<AlpacaOptionGreeks>,
+    #[serde(rename = "impliedVolatility", default)]
+    pub implied_volatility: Option<Decimal>,
+    #[serde(rename = "dailyBar", default)]
+    pub daily_bar: Option<AlpacaBar>,
+    #[serde(rename = "minuteBar", default)]
+    pub minute_bar: Option<AlpacaBar>,
+    #[serde(rename = "prevDailyBar", default)]
+    pub prev_daily_bar: Option<AlpacaBar>,
+}
+
+/// Latest option NBBO quote. Prices arrive as JSON *numbers* here (unlike the
+/// contracts endpoint), and there is no tape (`z`) field as on equity quotes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaOptionQuote {
+    #[serde(rename = "ap")]
+    pub ask_price: Decimal,
+    #[serde(rename = "as")]
+    pub ask_size: i32,
+    #[serde(rename = "ax")]
+    pub ask_exchange: String,
+    #[serde(rename = "bp")]
+    pub bid_price: Decimal,
+    #[serde(rename = "bs")]
+    pub bid_size: i32,
+    #[serde(rename = "bx")]
+    pub bid_exchange: String,
+    /// Single OPRA condition code (a string here, not the equity array).
+    #[serde(rename = "c", default)]
+    pub condition: Option<String>,
+    #[serde(rename = "t")]
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Latest option trade. Prices arrive as JSON *numbers*; there is no trade id
+/// (`i`) or tape (`z`) field as on equity trades.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaOptionTrade {
+    #[serde(rename = "t")]
+    pub timestamp: DateTime<Utc>,
+    #[serde(rename = "p")]
+    pub price: Decimal,
+    #[serde(rename = "s")]
+    pub size: i64,
+    #[serde(rename = "x")]
+    pub exchange: String,
+    /// Single OPRA condition code.
+    #[serde(rename = "c", default)]
+    pub condition: Option<String>,
+}
+
+/// Option greeks. Each field is optional; the whole object is absent when
+/// Alpaca has not computed greeks for the contract.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlpacaOptionGreeks {
+    #[serde(default)]
+    pub delta: Option<Decimal>,
+    #[serde(default)]
+    pub gamma: Option<Decimal>,
+    #[serde(default)]
+    pub theta: Option<Decimal>,
+    #[serde(default)]
+    pub vega: Option<Decimal>,
+    #[serde(default)]
+    pub rho: Option<Decimal>,
+}
+
+/// Optional filters for `AlpacaClient::get_option_contracts`. Construct with
+/// `Default::default()` and set only the fields you need.
+#[derive(Debug, Clone, Default)]
+pub struct OptionContractsFilter {
+    pub expiration_date: Option<NaiveDate>,
+    pub expiration_date_gte: Option<NaiveDate>,
+    pub expiration_date_lte: Option<NaiveDate>,
+    pub strike_price_gte: Option<Decimal>,
+    pub strike_price_lte: Option<Decimal>,
+    /// "call" or "put".
+    pub contract_type: Option<String>,
+    /// "american" or "european".
+    pub style: Option<String>,
+    /// "active" (default at Alpaca) or "inactive".
+    pub status: Option<String>,
+    /// Contracts per page (Alpaca default 100, max 10000).
+    pub limit: Option<u32>,
+}
+
+/// Optional filters for `AlpacaClient::get_option_snapshots`. Construct with
+/// `Default::default()` and set only the fields you need.
+#[derive(Debug, Clone, Default)]
+pub struct OptionSnapshotsFilter {
+    /// "opra" (default) or "indicative".
+    pub feed: Option<String>,
+    /// "call" or "put".
+    pub contract_type: Option<String>,
+    pub strike_price_gte: Option<Decimal>,
+    pub strike_price_lte: Option<Decimal>,
+    pub expiration_date: Option<NaiveDate>,
+    pub expiration_date_gte: Option<NaiveDate>,
+    pub expiration_date_lte: Option<NaiveDate>,
+    pub root_symbol: Option<String>,
+    /// RFC-3339 timestamp; only snapshots updated at/after this are returned.
+    pub updated_since: Option<String>,
+    /// Snapshots per page (Alpaca default 100, max 1000).
+    pub limit: Option<u32>,
+}
+
 // ── Account Activities ───────────────────────────────────────────────
 
 /// A non-trade account activity (GET /v2/account/activities with an
@@ -933,5 +1111,200 @@ mod tests {
         assert_eq!(parsed.open, bar.open);
         assert_eq!(parsed.close, bar.close);
         assert_eq!(parsed.volume, bar.volume);
+    }
+
+    // ── Options ──────────────────────────────────────────────────────
+
+    #[test]
+    fn deserialize_option_contract_full() {
+        // Numeric fields arrive as JSON strings on this endpoint.
+        let json = r#"{
+            "id": "b0b6dd9d-8b9b-48a9-ba46-b9d54906e415",
+            "symbol": "AAPL250620C00100000",
+            "name": "AAPL Jun 20 2025 100 Call",
+            "status": "active",
+            "tradable": true,
+            "expiration_date": "2025-06-20",
+            "root_symbol": "AAPL",
+            "underlying_symbol": "AAPL",
+            "underlying_asset_id": "b6d1aa75-5c9c-4353-a305-9e2caa1925ab",
+            "type": "call",
+            "style": "american",
+            "strike_price": "100",
+            "multiplier": "100",
+            "size": "100",
+            "open_interest": "1523",
+            "open_interest_date": "2025-06-13",
+            "close_price": "12.35",
+            "close_price_date": "2025-06-13"
+        }"#;
+        let c: AlpacaOptionContract = serde_json::from_str(json).unwrap();
+        assert_eq!(c.symbol, "AAPL250620C00100000");
+        assert_eq!(c.contract_type, "call");
+        assert_eq!(c.style, "american");
+        assert_eq!(c.strike_price, "100");
+        assert!(c.tradable);
+        assert_eq!(
+            c.expiration_date,
+            NaiveDate::from_ymd_opt(2025, 6, 20).unwrap()
+        );
+        assert_eq!(c.open_interest.as_deref(), Some("1523"));
+        assert_eq!(
+            c.close_price_date,
+            Some(NaiveDate::from_ymd_opt(2025, 6, 13).unwrap())
+        );
+    }
+
+    #[test]
+    fn deserialize_option_contract_minimal() {
+        // Only the always-present fields; every optional must default.
+        let json = r#"{
+            "id": "id-1",
+            "symbol": "SPY250620P00500000",
+            "name": "SPY Jun 20 2025 500 Put",
+            "status": "active",
+            "tradable": false,
+            "expiration_date": "2025-06-20",
+            "underlying_symbol": "SPY",
+            "type": "put",
+            "style": "american",
+            "strike_price": "500"
+        }"#;
+        let c: AlpacaOptionContract = serde_json::from_str(json).unwrap();
+        assert_eq!(c.contract_type, "put");
+        assert!(!c.tradable);
+        assert!(c.root_symbol.is_none());
+        assert!(c.open_interest.is_none());
+        assert!(c.close_price.is_none());
+        assert!(c.close_price_date.is_none());
+    }
+
+    #[test]
+    fn deserialize_option_contracts_response_pagination() {
+        let json = r#"{
+            "option_contracts": [
+                {
+                    "id": "id-1",
+                    "symbol": "AAPL250620C00100000",
+                    "name": "AAPL Jun 20 2025 100 Call",
+                    "status": "active",
+                    "tradable": true,
+                    "expiration_date": "2025-06-20",
+                    "underlying_symbol": "AAPL",
+                    "type": "call",
+                    "style": "american",
+                    "strike_price": "100"
+                }
+            ],
+            "next_page_token": "MTAw"
+        }"#;
+        let resp: AlpacaOptionContractsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.option_contracts.len(), 1);
+        assert_eq!(resp.next_page_token.as_deref(), Some("MTAw"));
+    }
+
+    #[test]
+    fn deserialize_null_option_contracts_response() {
+        let json = r#"{"option_contracts": null, "next_page_token": null}"#;
+        let resp: AlpacaOptionContractsResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.option_contracts.is_empty());
+        assert!(resp.next_page_token.is_none());
+    }
+
+    #[test]
+    fn deserialize_option_snapshot_full() {
+        // Quote/trade/greeks/IV arrive as JSON NUMBERS here (not strings).
+        let json = r#"{
+            "latestQuote": {
+                "t": "2026-08-28T14:30:00.123456Z",
+                "bx": "C",
+                "bp": 12.30,
+                "bs": 40,
+                "ap": 12.55,
+                "as": 25,
+                "ax": "N",
+                "c": "A"
+            },
+            "latestTrade": {
+                "t": "2026-08-28T14:29:59Z",
+                "x": "C",
+                "p": 12.40,
+                "s": 3,
+                "c": "I"
+            },
+            "greeks": {
+                "delta": 0.5423,
+                "gamma": 0.0123,
+                "theta": -0.0456,
+                "vega": 0.1234,
+                "rho": 0.0789
+            },
+            "impliedVolatility": 0.2871
+        }"#;
+        let snap: AlpacaOptionSnapshot = serde_json::from_str(json).unwrap();
+        let q = snap.latest_quote.unwrap();
+        assert_eq!(q.bid_price, Decimal::new(1230, 2));
+        assert_eq!(q.ask_price, Decimal::new(1255, 2));
+        assert_eq!(q.ask_size, 25);
+        assert_eq!(q.condition.as_deref(), Some("A"));
+        let t = snap.latest_trade.unwrap();
+        assert_eq!(t.price, Decimal::new(1240, 2));
+        assert_eq!(t.size, 3);
+        let g = snap.greeks.unwrap();
+        assert_eq!(g.delta, Some(Decimal::new(5423, 4)));
+        assert_eq!(g.theta, Some(Decimal::new(-456, 4)));
+        assert_eq!(snap.implied_volatility, Some(Decimal::new(2871, 4)));
+    }
+
+    #[test]
+    fn deserialize_option_snapshot_missing_greeks() {
+        let json = r#"{
+            "latestQuote": {
+                "t": "2026-08-28T14:30:00Z",
+                "bx": "C",
+                "bp": 1.05,
+                "bs": 10,
+                "ap": 1.15,
+                "as": 12,
+                "ax": "N"
+            }
+        }"#;
+        let snap: AlpacaOptionSnapshot = serde_json::from_str(json).unwrap();
+        assert!(snap.latest_trade.is_none());
+        assert!(snap.greeks.is_none());
+        assert!(snap.implied_volatility.is_none());
+        assert!(snap.latest_quote.unwrap().condition.is_none());
+    }
+
+    #[test]
+    fn deserialize_option_snapshots_response() {
+        let json = r#"{
+            "snapshots": {
+                "AAPL250620C00100000": {
+                    "latestQuote": {
+                        "t": "2026-08-28T14:30:00Z",
+                        "bx": "C",
+                        "bp": 12.30,
+                        "bs": 40,
+                        "ap": 12.55,
+                        "as": 25,
+                        "ax": "N"
+                    }
+                }
+            },
+            "next_page_token": "abc123"
+        }"#;
+        let resp: AlpacaOptionSnapshotsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.snapshots.len(), 1);
+        assert!(resp.snapshots.contains_key("AAPL250620C00100000"));
+        assert_eq!(resp.next_page_token.as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn deserialize_null_option_snapshots_response() {
+        let json = r#"{"snapshots": null, "next_page_token": null}"#;
+        let resp: AlpacaOptionSnapshotsResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.snapshots.is_empty());
+        assert!(resp.next_page_token.is_none());
     }
 }
