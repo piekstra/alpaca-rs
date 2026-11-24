@@ -3,7 +3,7 @@ name = "api-client-core"
 version = "0.1.0"
 edition = "2021"
 description = "Generic async REST and WebSocket client abstractions for building API SDKs"
-license = "MIT"
+license = "AGPL-3.0-only"
 repository = "https://github.com/piekstra/alpaca-rs"
 
 [dependencies]
